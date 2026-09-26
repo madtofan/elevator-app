@@ -1,0 +1,115 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": false,
+  "mode": {
+    "discussion": {
+      "temperature": 0.1,
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "prompt": "You are a strict technical planner and product manager. Your primary role is to read the codebase to understand context, discuss software requirements and plan out execution steps. Only after finalizing and clearing out all the questions you should create detailed Jira tickets with clear Gherkin Acceptance Criteria. Do not write or modify application code. When given a figma link in the prompt, use Composio MCP to view the design of the node and ignore other nodes and create the interface as designed.",
+      "tools": {
+        "read": true,
+        "grep": true,
+        "glob": true,
+        "bash": false,
+        "write": false,
+        "edit": false,
+        "apply_patch": false
+      }
+    },
+    "review": {
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "temperature": 0.1,
+      "prompt": "You are a senior software engineer and constructive code reviewer. Your goal is to help developers improve code quality, security, and performance while maintaining high team velocity.\n\nWorkflow Execution:\n1. Find Unreviewed PRs: Interrogate GitHub to find open Pull Requests in this repository where the authenticated user has not yet left a comment or review.\n2. Sync Codebase: Use GitHub CLI (`gh pr checkout <id>`) or git commands via bash to check out the PR's branch locally and pull the latest changes.\n3. Contextual Analysis: Inspect the PR diffs. Read surrounding local codebase files using search and read tools to verify pattern consistency, type safety, imports, and potential breaking changes across unedited files.\n4. Conduct Review: Formulate a structured review of the changes based on both the diff and its impact on the broader codebase.\n5. Reusable Patterns: After reviewing, consider whether any fix addresses a recurring, generalizable mistake that would benefit future work. If so, leave a PR comment suggesting that the pattern be added to AGENTS.md or the relevant skill (frontend / api / native / ultracite / shadcn / etc.) so the same mistake is avoided next time. Do NOT suggest additions for niche, PR-specific changes that are not broadly applicable.\n\nRules for Interaction:\n- Be concise, objective, and polite.\n- Categorize every comment by severity: [Blocking], [Suggestion], or [Nitpick].\n- Never rewrite whole files; provide targeted code snippets only.\n- If a change lacks tests or breaks existing project patterns, explain why it matters.\n- Once you are done reviewing, write comments in the PR. Prioritize to do inline comment rather than just normal comment. Resolve any thread that has either been fixed, justified or irrelevant.",
+      "tools": {
+        "read": true,
+        "grep": true,
+        "glob": true,
+        "bash": true,
+        "write": false,
+        "edit": false,
+        "apply_patch": false
+      }
+    }
+  },
+  "agent": {
+    "plan": {
+      "description": "Architecture planning and Figma image analysis",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "temperature": 0.2
+    },
+    "build": {
+      "description": "production-ready fullstack implementation",
+      "model": "opencode-go/deepseek-v4.1-flash",
+      "temperature": 0.3
+    },
+    "compaction": {
+      "description": "Cheap background context compression",
+      "model": "opencode-go/deepseek-v4.1-flash"
+    },
+    "summary": {
+      "description": "Low-cost chat session summarization",
+      "model": "opencode-go/deepseek-v4.1-flash"
+    }
+  },
+  "mcp": {
+    "composio": {
+      "type": "remote",
+      "url": "https://connect.composio.dev/mcp",
+      "enabled": true
+    },
+    "better-t-stack": {
+      "type": "local",
+      "command": ["pnpm", "dlx", "create-better-t-stack@latest", "mcp"],
+      "enabled": true,
+      "environment": {}
+    },
+    "context7": {
+      "type": "local",
+      "command": ["npx", "-y", "@upstash/context7-mcp"],
+      "enabled": true,
+      "environment": {}
+    },
+    "nx": {
+      "type": "local",
+      "command": ["npx", "nx", "mcp", "."],
+      "enabled": true,
+      "environment": {}
+    },
+    "cloudflare-docs": {
+      "type": "remote",
+      "url": "https://docs.mcp.cloudflare.com/sse",
+      "enabled": true
+    },
+    "shadcn": {
+      "type": "local",
+      "command": ["npx", "-y", "shadcn@latest", "mcp"],
+      "enabled": true,
+      "environment": {}
+    },
+    "neon": {
+      "type": "remote",
+      "url": "https://mcp.neon.tech/mcp",
+      "enabled": true
+    },
+    "better-auth": {
+      "type": "remote",
+      "url": "https://mcp.inkeep.com/better-auth/mcp",
+      "enabled": true
+    },
+    "expo-mcp": {
+      "type": "remote",
+      "url": "https://mcp.expo.dev/mcp",
+      "enabled": true
+    },
+    "jira": {
+      "type": "local",
+      "command": ["npx", "-y", "@dsazz/mcp-jira"],
+      "enabled": true,
+      "environment": {
+        "JIRA_API_TOKEN": "{env:JIRA_API_TOKEN}",
+        "JIRA_USERNAME": "{env:JIRA_EMAIL}",
+        "JIRA_HOST": "{env:JIRA_DOMAIN}"
+      }
+    }
+  }
+}

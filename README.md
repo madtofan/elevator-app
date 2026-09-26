@@ -1,22 +1,66 @@
-# elevator-app
+# 🛗 Elevator App (`elevator-app`)
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Hono, ORPC, and more.
+A lightweight, real-time Raspberry Pi 2 GPIO controller and monitoring system. Built on a low-footprint **Node.js + Hono + oRPC** backend and a **React + TanStack Router PWA** frontend using the **Better-T-Stack** monorepo architecture.
 
-## Features
+Engineered specifically to run on resource-constrained hardware (< 50MB RAM ceiling) with atomic Over-The-Air (OTA) updates and auto-rollback capability.
 
-- **TypeScript** - For type safety and improved developer experience
-- **TanStack Router** - File-based routing with full type safety
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
-- **Hono** - Lightweight, performant server framework
-- **oRPC** - End-to-end type-safe APIs with OpenAPI integration
-- **Node.js** - Runtime environment
-- **Drizzle** - TypeScript-first ORM
-- **SQLite/Turso** - Database engine
-- **Authentication** - Better-Auth
-- **Biome** - Linting and formatting
-- **Nx** - Smart monorepo task orchestration and caching
-- **PWA** - Progressive Web App support
+---
+
+## 🏗️ System Architecture
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ Raspberry Pi 2 │
+│ │
+│ ┌─────────────────────────────────────────────────────────────────┐ │
+│ │ Hono Server (Node.js) │ │
+│ │ │ │
+│ │ ├── Auto-Migrations ──► SQLite (/home/pi/gpio-app/gpio_data.db) │
+│ │ ├── GPIO Watcher ──► Hardware Interrupts (onoff) │ │
+│ │ ├── oRPC API Router ──► Read / Toggle / History │ │
+│ │ ├── SSE Stream ──► /api/gpio/sse Real-time Bus │ │
+│ │ └── Static Server ──► Serves React PWA Bundle (dist/) │ │
+│ └─────────────────────────────────────────────────────────────────┘ │
+└────────────────────────────────────▲────────────────────────────────────┘
+│ HTTP / SSE / oRPC
+┌────────────────────────────────────┴────────────────────────────────────┐
+│ Client (iOS / Android / Desktop) │
+│ │
+│ React + TanStack Router PWA (Installable via Add to Home Screen) │
+└─────────────────────────────────────────────────────────────────────────┘
+
+---
+
+## 🛠️ Tech Stack
+
+| Domain                         | Technology                                    |
+| :----------------------------- | :-------------------------------------------- |
+| **Monorepo / Package Manager** | `pnpm` workspaces + `Nx`                      |
+| **Backend Framework**          | Hono (`@hono/node-server`) running on Node.js |
+| **API Layer**                  | oRPC (End-to-end type safety)                 |
+| **Database & ORM**             | SQLite (`better-sqlite3`) + Drizzle ORM       |
+| **Hardware Driver**            | `onoff` (Linux sysfs/epoll edge interrupts)   |
+| **Frontend Framework**         | React + Vite + TanStack Router                |
+| **PWA Engine**                 | `vite-plugin-pwa` (Workbox)                   |
+| **Authentication**             | Better Auth (`better-auth`)                   |
+| **Code Formatting**            | Biome                                         |
+
+---
+
+## ⚡ Key Features
+
+- **Hardware Edge Interrupts:** Listens for pin state changes (LOW $\leftrightarrow$ HIGH) at the Linux kernel level with 10ms hardware debouncing.
+- **Real-time SSE Event Bus:** Streams pin state transitions instantly to all connected PWAs via Server-Sent Events without polling.
+- **Persistent History Log:** SQLite database records all pin state transitions with ISO-8601 timestamps.
+- **Zero-Downtime Atomic OTA Updates:** Daily `systemd` timer checks Cloudflare Workers/R2 for new releases, extracts them to versioned folders, swaps atomic symlinks, and performs automatic HTTP health check rollbacks if booting fails.
+- **Installer-less PWA:** Fully installable on iOS and Android without Apple/Google developer accounts.
+
+---
+
+### Prerequisites
+
+- **Node.js:** `v18.x` or higher
+- **Package Manager:** `pnpm` (`npm i -g pnpm`)
+- **Target Hardware:** Raspberry Pi 2 (ARMv7 or ARMv8) running Linux (Raspberry Pi OS)
 
 ## Getting Started
 
@@ -125,3 +169,71 @@ elevator-app/
 ## Better Auth Schema Generation
 
 After changing auth plugins or schema options, run `pnpm run auth:generate` from the project root. The script runs the Better Auth CLI through `varlock run` from the owning app directory, loading the auth instance from `src/services.ts`. Review the schema changes, then use your ORM's migration workflow to apply them.
+
+## 📦 Production Build & Deployment
+
+### 1. Build the Release Bundle on PC
+
+Do not compile or run `vite build` on the Pi 2 to avoid memory exhaustion.
+
+```Bash
+pnpm build
+```
+
+This generates:
+
+- `apps/web/dist` — React PWA assets.
+- `apps/server/dist/server.js` — Single-file Node.js server bundle (`better-sqlite3` and `onoff` marked as external).
+- `apps/server/drizzle` — SQL migration files.
+
+### 2. Package Release
+
+```Bash
+bash scripts/build-release.sh
+```
+
+Outputs `build/v1.0.0.tar.gz` ready for deployment or R2 upload.
+
+## Raspberry Pi 2 Setup & Systemd Service
+
+Folder Structure on Pi
+
+```Plaintext
+/home/pi/gpio-app/
+├── gpio_data.db                 # Persistent SQLite Database
+├── current_version              # Installed version tag (e.g. 1.0.0)
+├── current -> releases/v1.0.0/  # Active symlink
+└── releases/
+    └── v1.0.0/
+        ├── server.js
+        ├── drizzle/
+        └── dist/
+```
+
+Systemd Service Configuration
+Create `/etc/systemd/system/gpio-app.service`:
+
+```Ini, TOML
+[Unit]
+Description=Elevator App - Hono GPIO PWA Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/pi/gpio-app/current
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+MemoryMax=100M
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start:
+
+```Bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now gpio-app.service
+```
