@@ -1,0 +1,37 @@
+{
+  "name": "elevator-app",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "type": "module",
+  "scripts": {
+    "dev": "nx run-many -t dev",
+    "build": "nx run-many -t build",
+    "check-types": "nx run-many -t check-types",
+    "dev:web": "nx run-many -t dev --projects=web",
+    "dev:server": "nx run-many -t dev --projects=server",
+    "db:push": "nx run-many -t db:push --projects=@elevator-app/db",
+    "db:studio": "nx run-many -t db:studio --projects=@elevator-app/db",
+    "db:generate": "nx run-many -t db:generate --projects=@elevator-app/db",
+    "db:migrate": "nx run-many -t db:migrate --projects=@elevator-app/db",
+    "db:local": "nx run-many -t db:local --projects=@elevator-app/db",
+    "env:generate": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
+    "postinstall": "varlock codegen --path ./apps/web/ && varlock codegen --path ./apps/server/ && varlock codegen --path ./packages/db/",
+    "auth:generate": "cd apps/server && pnpm run auth:generate",
+    "check": "biome check --write ."
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.12",
+    "@elevator-app/config": "workspace:*",
+    "@types/node": "catalog:",
+    "nx": "^23.2.0",
+    "typescript": "catalog:",
+    "varlock": "catalog:"
+  },
+  "packageManager": "pnpm@12.6.0"
+}
