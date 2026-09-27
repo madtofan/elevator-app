@@ -9,11 +9,17 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
 import { createContext } from "./context";
-import { runMigrations } from "./db";
+import { db, runMigrations } from "./db";
 import { ENV } from "./env.server";
+import { gpioRoutes } from "./gpio/sse";
+import { initGpioWatcher } from "./gpio/watcher";
 import { auth } from "./services";
 
 runMigrations();
+
+// Non-fatal: the server still serves history when GPIO is unavailable (e.g. on
+// development machines), unlike the migration fail-fast above.
+await initGpioWatcher({ db });
 
 const app = new Hono();
 
@@ -27,6 +33,8 @@ app.use(
 		credentials: true,
 	}),
 );
+
+app.route("/api/gpio", gpioRoutes);
 
 app.on(["POST", "GET"], "/api/auth/*", async (c) => auth.handler(c.req.raw));
 
