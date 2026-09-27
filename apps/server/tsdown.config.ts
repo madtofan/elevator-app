@@ -5,6 +5,7 @@ export default defineConfig({
 	format: "esm",
 	outDir: "./dist",
 	clean: true,
+	copy: ["../../packages/db/src/migrations"],
 	deps: {
 		alwaysBundle: [/@elevator-app\/.*/],
 		neverBundle: ["better-sqlite3", "onoff"],

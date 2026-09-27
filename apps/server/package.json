@@ -5,6 +5,7 @@
 	"scripts": {
 		"build": "tsc -b ../../packages/api && tsdown",
 		"check-types": "tsc -b ../../packages/api && tsc --noEmit",
+		"test": "vitest run",
 		"compile": "bun build --compile --no-compile-autoload-dotenv --minify --sourcemap --bytecode ./src/index.ts --outfile server",
 		"dev": "tsx watch src/index.ts",
 		"start": "node dist/index.mjs",
@@ -32,6 +33,7 @@
 		"@types/node": "catalog:",
 		"tsdown": "^0.23.0",
 		"tsx": "^4.23.13",
-		"typescript": "catalog:"
+		"typescript": "catalog:",
+		"vitest": "^5.0.2"
 	}
 }

@@ -1,5 +1,11 @@
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	check,
+	index,
+	integer,
+	sqliteTable,
+	text,
+} from "drizzle-orm/sqlite-core";
 
 export const gpioHistory = sqliteTable(
 	"gpio_history",
@@ -11,5 +17,8 @@ export const gpioHistory = sqliteTable(
 			.notNull()
 			.default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`),
 	},
-	(table) => [index("gpio_history_timestamp_idx").on(table.timestamp)],
+	(table) => [
+		index("gpio_history_timestamp_idx").on(table.timestamp),
+		check("gpio_history_state_check", sql`${table.state} in (0, 1)`),
+	],
 );
