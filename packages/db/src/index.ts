@@ -1,15 +1,18 @@
-import { createClient } from "@libsql/client";
-import { drizzle } from "drizzle-orm/libsql";
+import { fileURLToPath } from "node:url";
+import Sqlite from "better-sqlite3";
+import { drizzle } from "drizzle-orm/better-sqlite3";
 
 import type { DatabaseConfig } from "./config";
 import { relations } from "./relations";
 
-export function createDb(env: DatabaseConfig) {
-  const client = createClient({
-    url: env.DATABASE_URL,
-  });
+export const migrationsFolder = fileURLToPath(
+	new URL("./migrations", import.meta.url),
+);
 
-  return drizzle({ client, relations });
+export function createDb(env: DatabaseConfig) {
+	const client = new Sqlite(env.DATABASE_PATH);
+
+	return drizzle({ client, relations });
 }
 
 export type Database = ReturnType<typeof createDb>;

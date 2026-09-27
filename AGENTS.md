@@ -6,14 +6,17 @@ You are working on **`elevator-app`**, a production-grade monorepo targeting a *
 
 1. **Memory Budget:** Memory usage **must stay under 50MB RAM** on the Pi. Avoid heavy dependencies, unnecessary background workers, or memory-leaking closures.
 2. **Native C/C++ Module Protection:**
-   - `better-sqlite3` and `onoff` are compiled C modules.
-   - **NEVER** attempt to bundle `better-sqlite3` or `onoff` into the compiled JS bundle. They **MUST** be marked as `external` in `tsup`/`esbuild` configurations.
+   - `better-sqlite3` and `onoff` are native modules and **MUST** remain external in the server bundle.
+   - They are enforced in `apps/server/tsdown.config.ts` via `deps.neverBundle: ["better-sqlite3", "onoff"]`. Never move them into `alwaysBundle` or import their internals.
+   - `better-sqlite3` v13 ships N-API prebuilds for macOS/Linux/Windows on x64 and arm64 only. Both packages are listed as `false` in `pnpm-workspace.yaml` `allowBuilds` so dev machines never compile them; ARMv7 (Pi 2) requires an on-device source build (see README roadmap).
 3. **Database Path Immutability:**
-   - The SQLite database **must strictly reside** at `/home/pi/gpio-app/gpio_data.db`.
+   - The database location comes from `DATABASE_PATH`. Production **must** use `/home/pi/gpio-app/gpio_data.db`.
+   - Local development uses `../../local.db` (relative to `apps/server`).
    - **NEVER** place the `.db` file inside the relative release execution folder (`./`), as atomic OTA symlink rotations will orphan the database or create empty instances.
-4. **Boot Migration Fail-Fast Rule:**
-   - Database auto-migrations run synchronously via `drizzle-orm/better-sqlite3/migrator` during `server.ts` initialization before mounting HTTP routes.
+4. **Boot Migration Fail-Fast Rule (target convention):**
+   - When boot migrations are wired into `apps/server/src/index.ts`, run them synchronously with `migrate()` from `drizzle-orm/better-sqlite3/migrator` using `migrationsFolder` exported by `@elevator-app/db`, before mounting HTTP routes.
    - If a migration throws an error, **call `process.exit(1)` immediately**. This ensures `systemd` fails the health check, triggering the OTA auto-rollback mechanism.
+   - Status: migrations are generated (`packages/db/src/migrations`) but boot wiring is a tracked follow-up. Do not deploy to the Pi until it exists.
 
 ---
 
@@ -24,40 +27,38 @@ elevator-app/
 ├── apps/
 │   ├── server/                   # Hono + Node.js Backend
 │   │   ├── src/
-│   │   │   ├── db/               # Drizzle Schema & Migration Loader
-│   │   │   │   ├── schema.ts
-│   │   │   │   └── index.ts
-│   │   │   ├── gpio/             # onoff Hardware Interrupts & EventEmitter
-│   │   │   │   └── index.ts
-│   │   │   ├── router/           # oRPC API Procedures
-│   │   │   │   └── index.ts
-│   │   │   └── server.ts         # Server Entrypoint (Boot sequence & SSE)
-│   │   ├── drizzle/              # Generated SQL Migrations
-│   │   └── tsup.config.ts        # Bundler Config (Externals enforced)
+│   │   │   ├── index.ts          # Server entrypoint (Hono app, oRPC handlers)
+│   │   │   ├── services.ts       # createDb(ENV) + createAuth(ENV, db)
+│   │   │   ├── context.ts        # oRPC context (db + Better Auth session)
+│   │   │   └── env.server.ts     # Varlock env bootstrap
+│   │   └── tsdown.config.ts      # Bundler Config (neverBundle for native deps)
 │   │
-│   └── web/                      # React + TanStack Router Frontend
+│   └── web/                      # React + TanStack Router PWA
 │       ├── src/
-│       │   ├── routes/           # TanStack Router Pages (/live, /history)
+│       │   ├── routes/           # TanStack Router Pages
+│       │   ├── utils/orpc.ts     # oRPC client + TanStack Query utils
 │       │   └── main.tsx
 │       └── vite.config.ts        # Vite + vite-plugin-pwa Setup
 │
-├── scripts/                      # Deployment & OTA Scripts
-│   ├── build-release.sh
-│   └── ota-update.sh
+├── packages/
+│   ├── api/                      # oRPC routers, services, Vitest tests
+│   ├── auth/                     # Better Auth setup (Drizzle adapter)
+│   ├── config/                   # Shared tsconfig
+│   ├── db/                       # Drizzle schema, migrations, createDb
+│   └── ui/                       # Shared shadcn/ui primitives
 │
+├── scripts/                      # Deployment & OTA scripts (planned, not implemented yet)
 ├── package.json
 └── pnpm-workspace.yaml
 ```
 
-# Ultracite Code Standards
+# Code Standards & Verification
 
-This project uses **Ultracite**, a zero-config preset that enforces strict code quality standards through automated formatting and linting.
+This project uses **Biome** for linting and formatting (configured in `biome.json`).
 
 ## Quick Reference
 
-- **Format code**: `pnpm dlx ultracite fix`
-- **Check for issues**: `pnpm dlx ultracite check`
-- **Diagnose setup**: `pnpm dlx ultracite doctor`
+- **Format + fix**: `pnpm check`
 - **Type check**: `pnpm check-types`
 - **API tests**: `pnpm test:api`
 - **Web tests**: `pnpm test:web`
@@ -67,10 +68,10 @@ This project uses **Ultracite**, a zero-config preset that enforces strict code 
 After completing every task, you MUST run these commands and ensure they all pass:
 
 ```bash
-pnpm dlx ultracite fix && pnpm check-types && pnpm test:api && pnpm test:web
+pnpm check && pnpm check-types && pnpm test:api && pnpm test:web
 ```
 
-Biome (the underlying engine) provides robust linting and formatting. Most issues are automatically fixable.
+Biome fixes most formatting and common lint issues automatically. Do not run ad-hoc formatters.
 
 ---
 
@@ -81,8 +82,7 @@ Load the relevant domain skill **when editing, reading, or reviewing** files in 
 | Area           | Skill                                                        | Trigger (edit / read / review)                                                                                       | Covers                                                                        |
 | -------------- | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `apps/web`     | `frontend`                                                   | `apps/web/**`, `apps/web/src/modules/**`, TanStack Router, orpc, react-query, react-form, code review of web modules | Module Pattern, Routes, Forms, TanStack Query, Layouts, React & JSX (web)     |
-| `packages/api` | `api`                                                        | `packages/api/**`, `packages/db/**`, oRPC, Drizzle                                                                   | Routers/handlers/schemas, `.route()` meta, `withErrorResponses`, PGlite tests |
-| Any JS/TS      | `ultracite`                                                  | ultracite, lint, format, Biome/Eslint/Oxlint                                                                         | Code standards, fix/check/doctor commands                                     |
+| `packages/api` | `api`                                                        | `packages/api/**`, `packages/db/**`, oRPC, Drizzle                                                                   | Routers/handlers/schemas, `.route()` meta, in-memory SQLite tests             |
 | UI components  | `shadcn`                                                     | shadcn/ui, components.json, presets                                                                                  | Component composition, styling, CLI                                           |
 | Perf / React   | `vercel-react-best-practices`, `vercel-composition-patterns` | React performance, composition                                                                                       | Vercel 70-rule guides                                                         |
 
@@ -201,15 +201,23 @@ Biome's linter will catch most issues automatically. Focus your attention on:
 
 For detailed, copy-pasteable patterns, load the domain skill that matches the files you are touching — including when **reading or reviewing** code for review feedback.
 
-- **`apps/web` → `frontend` skill**: Module Pattern (Routes, `modules/<feature>/` structure, `index.ts` public API, 100-line limit), Forms (`@tanstack/react-form` + Zod factory with `TFunction`), TanStack Query ( `mutationOptions({ onSuccess: invalidateQueries })` not manual `refetch`, `IS_API_DATA_SOURCE ? query.isError : false`, stable deps), Layouts. Reference pattern: `apps/web/src/modules/branch/hooks/use-branches.ts` (landing in PR #45; placeholder `todos` module is not a valid reference).
-- **`packages/api` → `api` skill**: Routers (`index.ts` + `schemas.ts` + `handlers/`), `*Service(db, ...)` + `*` procedure split, `.route()` OpenAPI meta + `withErrorResponses`, PGlite `testDb`/`resetTestData()` tests.
+- **`apps/web` → `frontend` skill**: Module Pattern (Routes, `modules/<feature>/` structure, `index.ts` public API, 100-line limit), Forms (`@tanstack/react-form` + Zod schemas), TanStack Query (`mutationOptions({ onSuccess: invalidateQueries })` not manual `refetch`, stable deps), Layouts. Routes in `apps/web/src/routes/` stay thin and delegate to modules; `apps/web/src/utils/orpc.ts` is the API client.
+- **`packages/api` → `api` skill**: Routers (`index.ts` + `schemas.ts` + `handlers/`), `*Service(db, ...)` + `*` procedure split, `.route()` OpenAPI meta, in-memory better-sqlite3 `testDb`/`resetTestData()` tests at `packages/api/src/test/db.ts`.
+
+### Testing
+
+- Vitest is the test runner. `pnpm test:api` runs `packages/api`; `pnpm test:web` runs `apps/web`.
+- API tests call `*Service(testDb, ...)` functions directly — no HTTP layer. Reset state with `resetTestData()`.
+- Web modules add `__tests__/` folders for pure business logic; `apps/web` currently passes with no tests (`--passWithNoTests`).
 
 ### Coupled dependencies
 
 React/react-dom are pinned in the pnpm catalog (`pnpm-workspace.yaml`); bump both catalog entries together and keep workspace consumers on `catalog:` — do not reintroduce independent caret ranges for coupled deps.
 
+Native packages (`better-sqlite3`, `epoll` for `onoff`) are `false` in `allowBuilds`; do not flip them on dev machines.
+
 Existing external skills remain authoritative for their areas and are referenced by domain skills rather than duplicated.
 
 ---
 
-Most formatting and common issues are automatically fixed by Biome. After completing every task you MUST run the following command with a sub-agent if possible `pnpm dlx ultracite fix && pnpm check-types && pnpm test:api && pnpm test:web` to ensure compliance.
+Most formatting and common issues are automatically fixed by Biome. After completing every task you MUST run `pnpm check && pnpm check-types && pnpm test:api && pnpm test:web` to ensure compliance.

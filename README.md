@@ -46,7 +46,9 @@ Engineered specifically to run on resource-constrained hardware (< 50MB RAM ceil
 
 ---
 
-## ⚡ Key Features
+## ⚡ Key Features (planned)
+
+> Status: scaffold stage. Hono + oRPC + Better Auth + Drizzle/better-sqlite3 are wired up; GPIO, SSE, and OTA are not implemented yet.
 
 - **Hardware Edge Interrupts:** Listens for pin state changes (LOW $\leftrightarrow$ HIGH) at the Linux kernel level with 10ms hardware debouncing.
 - **Real-time SSE Event Bus:** Streams pin state transitions instantly to all connected PWAs via Server-Sent Events without polling.
@@ -58,7 +60,7 @@ Engineered specifically to run on resource-constrained hardware (< 50MB RAM ceil
 
 ### Prerequisites
 
-- **Node.js:** `v18.x` or higher
+- **Node.js:** `v22` or higher (`better-sqlite3` v13 requires Node >= 22; Vite 8 requires >= 20.19/22.12)
 - **Package Manager:** `pnpm` (`npm i -g pnpm`)
 - **Target Hardware:** Raspberry Pi 2 (ARMv7 or ARMv8) running Linux (Raspberry Pi OS)
 
@@ -72,21 +74,16 @@ pnpm install
 
 ## Database Setup
 
-This project uses SQLite with Drizzle ORM.
+This project uses SQLite via `better-sqlite3` with Drizzle ORM.
 
-1. Start the local SQLite database (optional):
-
-```bash
-pnpm run db:local
-```
-
-2. Update your `.env` file in the `apps/server` directory with the appropriate connection details if needed.
-
-3. Apply the schema to your database:
+1. `apps/server/.env` sets `DATABASE_PATH=../../local.db` for local development. The database file is created automatically on first connection.
+2. Apply the schema to your database:
 
 ```bash
 pnpm run db:push
 ```
+
+After schema changes, generate SQL migrations with `pnpm run db:generate` (written to `packages/db/src/migrations`) and apply them with `pnpm run db:migrate`.
 
 Then, run the development server:
 
@@ -133,7 +130,7 @@ Bun's automatic env loading is disabled in `bunfig.toml`; the framework integrat
 
 Run standalone Node/Bun tools that use Varlock from the owning app directory so they load that app's schema and env files. `env:generate` only generates TypeScript files; it does not initialize environment values in a subsequent command.
 
-## Git Hooks and Formatting
+## Formatting and Checks
 
 - Run checks: `pnpm run check`
 
@@ -146,9 +143,10 @@ elevator-app/
 │   └── server/      # Backend API (Hono, ORPC)
 ├── packages/
 │   ├── ui/          # Shared shadcn/ui components and styles
-│   ├── api/         # API layer / business logic
+│   ├── api/         # API layer / business logic + Vitest tests
 │   ├── auth/        # Authentication configuration & logic
-│   └── db/          # Database schema & queries
+│   ├── db/          # Database schema, migrations & client
+│   └── config/      # Shared tsconfig
 ```
 
 ## Available Scripts
@@ -159,10 +157,11 @@ elevator-app/
 - `pnpm run dev:server`: Start only the server
 - `pnpm run check-types`: Check TypeScript types across all apps
 - `pnpm run db:push`: Push schema changes to database
-- `pnpm run db:generate`: Generate database client/types
+- `pnpm run db:generate`: Generate SQL migrations from the Drizzle schema
 - `pnpm run db:migrate`: Run database migrations
 - `pnpm run db:studio`: Open database studio UI
-- `pnpm run db:local`: Start the local SQLite database
+- `pnpm run test:api`: Run API unit tests (Vitest, in-memory SQLite)
+- `pnpm run test:web`: Run web unit tests (Vitest)
 - `pnpm run check`: Run Biome formatting and linting
 - `cd apps/web && pnpm run generate-pwa-assets`: Generate PWA assets
 
@@ -170,7 +169,7 @@ elevator-app/
 
 After changing auth plugins or schema options, run `pnpm run auth:generate` from the project root. The script runs the Better Auth CLI through `varlock run` from the owning app directory, loading the auth instance from `src/services.ts`. Review the schema changes, then use your ORM's migration workflow to apply them.
 
-## 📦 Production Build & Deployment
+## 📦 Production Build & Deployment (roadmap)
 
 ### 1. Build the Release Bundle on PC
 
@@ -183,16 +182,14 @@ pnpm build
 This generates:
 
 - `apps/web/dist` — React PWA assets.
-- `apps/server/dist/server.js` — Single-file Node.js server bundle (`better-sqlite3` and `onoff` marked as external).
-- `apps/server/drizzle` — SQL migration files.
+- `apps/server/dist/index.mjs` (plus dynamic-import chunks) — Node.js server bundle with `better-sqlite3` and `onoff` kept external as bare imports. Ship the whole `dist/` directory.
+- `packages/db/src/migrations` — generated SQL migrations.
+
+The bundle resolves `better-sqlite3` and `onoff` from `node_modules` at runtime, so the release must include their compiled binaries for the Pi. `better-sqlite3` v13 ships prebuilds for x64/arm64 only; ARMv7 (Pi 2) needs an on-device source build.
 
 ### 2. Package Release
 
-```Bash
-bash scripts/build-release.sh
-```
-
-Outputs `build/v1.0.0.tar.gz` ready for deployment or R2 upload.
+Not implemented yet — `scripts/build-release.sh` does not exist. When added it will produce `build/v1.0.0.tar.gz` ready for deployment or R2 upload.
 
 ## Raspberry Pi 2 Setup & Systemd Service
 
@@ -200,14 +197,15 @@ Folder Structure on Pi
 
 ```Plaintext
 /home/pi/gpio-app/
-├── gpio_data.db                 # Persistent SQLite Database
+├── gpio_data.db                 # Persistent SQLite Database (DATABASE_PATH)
 ├── current_version              # Installed version tag (e.g. 1.0.0)
 ├── current -> releases/v1.0.0/  # Active symlink
 └── releases/
     └── v1.0.0/
-        ├── server.js
-        ├── drizzle/
-        └── dist/
+        ├── index.mjs            # Server bundle (plus chunk .mjs files)
+        ├── node_modules/        # better-sqlite3 + onoff native binaries
+        ├── migrations/          # Drizzle SQL migrations
+        └── dist/                # React PWA assets
 ```
 
 Systemd Service Configuration
@@ -222,9 +220,10 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/home/pi/gpio-app/current
-ExecStart=/usr/bin/node server.js
+ExecStart=/usr/bin/node index.mjs
 Restart=always
 RestartSec=3
+# Runtime target is < 50MB (AGENTS.md); MemoryMax is the hard cgroup ceiling
 MemoryMax=100M
 
 [Install]

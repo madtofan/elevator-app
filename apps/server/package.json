@@ -1,35 +1,36 @@
 {
-  "name": "server",
-  "type": "module",
-  "main": "src/index.ts",
-  "scripts": {
-    "build": "tsc -b ../../packages/api && tsdown",
-    "check-types": "tsc -b ../../packages/api && tsc --noEmit",
-    "compile": "bun build --compile --no-compile-autoload-dotenv --minify --sourcemap --bytecode ./src/index.ts --outfile server",
-    "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.mjs",
-    "env:generate": "varlock codegen",
-    "auth:generate": "varlock run -- pnpm dlx auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes"
-  },
-  "dependencies": {
-    "@elevator-app/api": "workspace:*",
-    "@elevator-app/auth": "workspace:*",
-    "@elevator-app/db": "workspace:*",
-    "@hono/node-server": "^2.1.1",
-    "@orpc/openapi": "catalog:",
-    "@orpc/server": "catalog:",
-    "@orpc/zod": "catalog:",
-    "better-auth": "catalog:",
-    "hono": "^4.13.7",
-    "libsql": "catalog:",
-    "varlock": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@elevator-app/config": "workspace:*",
-    "@types/node": "catalog:",
-    "tsdown": "^0.23.0",
-    "tsx": "^4.23.13",
-    "typescript": "catalog:"
-  }
+	"name": "server",
+	"type": "module",
+	"main": "src/index.ts",
+	"scripts": {
+		"build": "tsc -b ../../packages/api && tsdown",
+		"check-types": "tsc -b ../../packages/api && tsc --noEmit",
+		"compile": "bun build --compile --no-compile-autoload-dotenv --minify --sourcemap --bytecode ./src/index.ts --outfile server",
+		"dev": "tsx watch src/index.ts",
+		"start": "node dist/index.mjs",
+		"env:generate": "varlock codegen",
+		"auth:generate": "varlock run -- pnpm dlx auth@latest generate --config src/services.ts --output ../../packages/db/src/schema/auth.ts --yes"
+	},
+	"dependencies": {
+		"@elevator-app/api": "workspace:*",
+		"@elevator-app/auth": "workspace:*",
+		"@elevator-app/db": "workspace:*",
+		"@hono/node-server": "^2.1.1",
+		"@orpc/openapi": "catalog:",
+		"@orpc/server": "catalog:",
+		"@orpc/zod": "catalog:",
+		"better-auth": "catalog:",
+		"better-sqlite3": "catalog:",
+		"hono": "^4.13.7",
+		"onoff": "^6.0.3",
+		"varlock": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@elevator-app/config": "workspace:*",
+		"@types/node": "catalog:",
+		"tsdown": "^0.23.0",
+		"tsx": "^4.23.13",
+		"typescript": "catalog:"
+	}
 }

@@ -1,25 +1,28 @@
 {
-  "name": "@elevator-app/api",
-  "type": "module",
-  "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts"
-  },
-  "scripts": {
-    "build": "tsc -b",
-    "check-types": "tsc -b"
-  },
-  "dependencies": {
-    "@elevator-app/auth": "workspace:*",
-    "@elevator-app/db": "workspace:*",
-    "@orpc/client": "catalog:",
-    "@orpc/openapi": "catalog:",
-    "@orpc/server": "catalog:",
-    "@orpc/zod": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@elevator-app/config": "workspace:*",
-    "typescript": "catalog:"
-  }
+	"name": "@elevator-app/api",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./*": "./src/*.ts"
+	},
+	"scripts": {
+		"build": "tsc -b",
+		"check-types": "tsc -b",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@elevator-app/auth": "workspace:*",
+		"@elevator-app/db": "workspace:*",
+		"@orpc/client": "catalog:",
+		"@orpc/openapi": "catalog:",
+		"@orpc/server": "catalog:",
+		"@orpc/zod": "catalog:",
+		"drizzle-orm": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@elevator-app/config": "workspace:*",
+		"typescript": "catalog:",
+		"vitest": "^5.0.2"
+	}
 }

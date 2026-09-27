@@ -1,127 +1,131 @@
 ---
 name: api
-description: "Backend API development for Elevator App. Use when editing, creating, reading, reviewing, or analyzing files in packages/api/**, packages/db/**, or when working with oRPC routers, handlers, schemas, withErrorResponses, ORPCError, Drizzle/Prisma/Mongoose, createDb, DbClient, publicProcedure/protectedProcedure, or API testing with PGlite. Keywords: packages/api, routers, handlers, createDb, DbClient, publicProcedure, protectedProcedure, withErrorResponses, ORPCError"
+description: "Backend API development for Elevator App. Use when editing, creating, reading, reviewing, or analyzing files in packages/api/**, packages/db/**, or when working with oRPC routers, handlers, schemas, ORPCError, Drizzle, createDb, Database, publicProcedure/protectedProcedure, or better-sqlite3 in-memory tests (testDb, resetTestData). Keywords: packages/api, routers, handlers, createDb, Database, publicProcedure, protectedProcedure, ORPCError, testDb, resetTestData"
 ---
 
 # API Skill
 
-Domain skill for `packages/api` and `packages/db` — Router/Handler patterns, OpenAPI metadata, and PGlite testing. Load this whenever you touch, read, or review backend code.
+Domain skill for `packages/api` and `packages/db` — Router/Handler patterns, OpenAPI metadata, and in-memory better-sqlite3 testing. Load this whenever you touch, read, or review backend code.
+
+## Current Surface (`packages/api/src`)
+
+- `index.ts` — exports `o`, `publicProcedure`, `protectedProcedure`. The auth middleware throws `ORPCError("UNAUTHORIZED")`.
+- `context.ts` — `Context = { session: Session | null; db: Database }`. The server assembles it in `apps/server/src/context.ts` from `createDb(ENV)` and the Better Auth session.
+- `routers/index.ts` — assembles `appRouter` (currently `healthCheck`, `privateData`).
+- `test/db.ts` — in-memory `testDb` (migrations already applied) and `resetTestData()`.
+- `test/__tests__/` and `routers/__tests__/` — Vitest tests.
 
 ## Routers (`packages/api/src/routers/<feature>/`)
 
-- Each router is a module folder with an `index.ts` that assembles handlers.
-- Schemas live in a `schemas.ts` file at the router level.
+- Each router is a module folder with an `index.ts` that assembles its handlers.
+- Schemas live in a `schemas.ts` file at the router level (Zod).
 - Handlers live in a `handlers/` subfolder with kebab-case filenames.
+- Register the router in `routers/index.ts` under its feature key.
 
-## Handler Files (e.g., `handlers/create.ts`)
+## Handler Files (e.g., `handlers/list.ts`)
 
 Each handler file exports two things:
 
-1. **`*Service` function** — pure business logic that takes a `DbClient` as its first argument. This is what unit tests call directly.
-2. **`*` handler** — the oRPC procedure that wires the service to the real DB via `createDb()`.
+1. **`*Service` function** — business logic that takes `Database` as its first argument. This is what unit tests call directly.
+2. **`*` procedure** — the oRPC procedure that wires the service to `context.db`. Never open a second database connection inside a handler.
 
 ```ts
-import type { DbClient } from "@elevator-app/db";
-import { createDb } from "@elevator-app/db";
-import { publicProcedure } from "@/procedures";
+import type { Database } from "@elevator-app/db";
+import { pinEvent } from "@elevator-app/db/schema/history";
+import { desc } from "drizzle-orm";
 
-export async function createTodoService(db: DbClient, text: string) {
-  const [row] = await db.insert(todo).values({ text }).returning();
-  return row;
+import { publicProcedure } from "../../../index";
+import { listPinEventsSchema } from "../schemas";
+
+export async function listPinEventsService(
+  db: Database,
+  input: { limit: number }
+) {
+  return await db
+    .select()
+    .from(pinEvent)
+    .orderBy(desc(pinEvent.createdAt))
+    .limit(input.limit);
 }
 
-export const createTodo = publicProcedure
+export const listPinEvents = publicProcedure
   .route({
-    method: "POST",
-    path: "/todo.create",
-    summary: "Create a todo item",
-    description: "Creates a new todo item with the given text.",
-    tags: ["Todo"],
-    successStatus: 201,
-    successDescription: "The created todo item.",
+    method: "GET",
+    path: "/history.list",
+    summary: "List pin state transitions",
+    description: "Returns the most recent pin state transitions.",
+    tags: ["History"],
+    successStatus: 200,
+    successDescription: "Pin state transitions, newest first.",
   })
-  .input(schema)
-  .handler(async ({ input }) => {
-    const db = createDb();
-    return await createTodoService(db, input.text);
-  });
+  .input(listPinEventsSchema)
+  .handler(({ context, input }) => listPinEventsService(context.db, input));
 ```
+
+The example assumes a future `pinEvent` table in `packages/db/src/schema/history.ts`; replace it with the real table when the GPIO history feature lands.
 
 ### Route Metadata
 
-Every handler MUST include a `.route()` call with OpenAPI metadata. This powers the API reference documentation at `/api-reference`.
+Every handler MUST include a `.route()` call with OpenAPI metadata. This powers the API reference at `/api-reference`.
 
 **Required route properties:**
 
 - `method` — HTTP method (`"GET"`, `"POST"`, `"PATCH"`, `"DELETE"`)
-- `path` — RPC-style path matching the router key hierarchy (e.g., `"/todo.create"`, `"/chat.listRooms"`)
+- `path` — RPC-style path matching the router key hierarchy (e.g., `"/history.list"`, `"/gpio.setState"`)
 - `summary` — Short summary of the endpoint
 - `description` — Detailed description of what the endpoint does
-- `tags` — Array of tag strings for grouping in the API reference (e.g., `["Todo"]`, `["Chat"]`)
+- `tags` — Array of tag strings for grouping in the API reference (e.g., `["History"]`, `["GPIO"]`)
 - `successStatus` — HTTP status code on success (200 for reads, 201 for creates)
 - `successDescription` — Description of the success response
-
-**Error responses:**
-Use the `withErrorResponses` helper (imported from `"../../../with-error-response"`) in the `spec` property to document expected error responses. Protected procedures must always document `401`. Procedures that throw specific `ORPCError` codes must document those as well.
-
-```ts
-import { withErrorResponses } from "../../../with-error-response";
-
-export const getRoom = protectedProcedure
-  .route({
-    method: "GET",
-    path: "/chat.getRoom",
-    summary: "Get chat room details",
-    description: "Returns a chat room with its participants.",
-    tags: ["Chat"],
-    successStatus: 200,
-    successDescription: "Chat room with participants.",
-    spec: withErrorResponses({
-      "401": "Authentication required.",
-      "403": "Not a participant of the room.",
-      "404": "Room not found.",
-    }),
-  })
-  .input(getRoomSchema)
-  .handler(async ({ context, input }) => { ... })
-```
 
 **Ordering:** Chain `.route()` before `.input()` and `.handler()`:
 
 ```
 procedure.route(opts).input(schema).handler(fn)
-procedure.route(opts).handler(fn)  // when no input schema
+procedure.route(opts).handler(fn)
 ```
+
+### Errors
+
+- Throw `ORPCError` for typed failures (e.g., `new ORPCError("NOT_FOUND")`), not plain `Error`.
+- `protectedProcedure` already throws `UNAUTHORIZED` for missing sessions.
+- There is no shared error-response helper yet. Add OpenAPI error documentation in `.route({ spec })` only when the API reference needs it.
 
 ### Imports
 
-- Use relative imports to import `publicProcedure` / `protectedProcedure` (e.g., `from "../../../procedures"`).
-- Use `@elevator-app/db` for `createDb`, `DbClient` type, and `eq` helper.
-- Use `@elevator-app/db/schema/*` for table definitions.
+- Import `publicProcedure` / `protectedProcedure` relatively from `packages/api/src/index.ts` (`../../../index` from `routers/<feature>/handlers/`, `../../index` from `routers/<feature>/`).
+- Use `@elevator-app/db` for `createDb`, the `Database` type, and `migrationsFolder`.
+- Use `@elevator-app/db/schema/*` for table definitions and `drizzle-orm` for query helpers (`eq`, `desc`, ...).
 
 ## Testing API Services
 
-- Use **Vitest** for in-memory DB tests.
-- Test helper at `packages/api/src/test/db.ts` provides `testDb` and `resetTestData()`.
-- Tests are co-located at the router level in `__tests__/` (e.g., `routers/todo/__tests__/create.test.ts`).
-- Tests call `*Service` functions directly — no oRPC routing or HTTP layer needed.
-- Seed test data via `testDb.insert()` and verify via `testDb.select()`.
-
-Example:
+- Use **Vitest**; run with `pnpm test:api`.
+- The helper at `packages/api/src/test/db.ts` provides `testDb` (better-sqlite3 `:memory:` with migrations applied) and `resetTestData()` (deletes all rows; call it in `beforeEach` or `afterEach`).
+- Tests are co-located at the router level in `__tests__/` (e.g., `routers/history/__tests__/list.test.ts`).
+- Tests call `*Service` functions directly — no oRPC routing or HTTP layer.
+- Seed test data via `testDb.insert(table).values(...)` and verify via `testDb.select()`.
 
 ```ts
-import { testDb, resetTestData } from "@/test/db";
-import { createTodoService } from "../handlers/create";
+import { afterEach, expect, it } from "vitest";
 
-beforeEach(() => resetTestData());
+import { resetTestData, testDb } from "../../../test/db";
+import { listPinEventsService } from "../handlers/list";
 
-it("creates a todo", async () => {
-  const row = await createTodoService(testDb, "Buy milk");
-  expect(row.text).toBe("Buy milk");
-  const rows = await testDb.select().from(todo);
-  expect(rows).toHaveLength(1);
+afterEach(() => {
+  resetTestData();
+});
+
+it("returns seeded pin events", async () => {
+  const rows = await listPinEventsService(testDb, { limit: 10 });
+  expect(rows).toHaveLength(0);
 });
 ```
+
+### Database Migrations
+
+- Schema lives in `packages/db/src/schema/`; migrations are generated with `pnpm db:generate` into `packages/db/src/migrations/`.
+- `migrationsFolder` is exported from `@elevator-app/db` for the boot migrator and `testDb`.
+- Never edit generated migrations by hand; change the schema and regenerate.
 
 ## Related Skills
 
@@ -134,7 +138,7 @@ When reviewing `packages/api` files, verify:
 
 - [ ] Each handler exports `*Service(db, ...)` + `*` procedure with `.route()` before `.input()`/`.handler()`
 - [ ] `.route()` has `method`, `path` (rpc-style), `summary`, `description`, `tags`, `successStatus`, `successDescription`
-- [ ] Protected routes document `401`; all thrown `ORPCError` codes are in `withErrorResponses` spec
-- [ ] Errors use `ORPCError` not plain `Error` (typed status for client)
-- [ ] Tests call `*Service` directly with `testDb`, not via HTTP
-- [ ] Imports use `@elevator-app/db` and relative `procedures`, not deep internal paths
+- [ ] Handlers use `context.db`, never a fresh `createDb()` call per request
+- [ ] Errors use `ORPCError` not plain `Error`
+- [ ] Tests call `*Service` directly with `testDb`, not via HTTP, and reset with `resetTestData()`
+- [ ] Imports use `@elevator-app/db` and relative `packages/api/src/index.ts`, not deep internal paths
