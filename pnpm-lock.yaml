@@ -278,6 +278,9 @@ importers:
       better-sqlite3:
         specifier: 'catalog:'
         version: 13.0.3
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 1.0.0-rc.4(@libsql/client@0.18.0)(@types/better-sqlite3@9.6.0)(better-sqlite3@13.0.3)(zod@4.6.5)
       hono:
         specifier: ^4.13.7
         version: 4.13.9
@@ -306,6 +309,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      vitest:
+        specifier: ^5.0.2
+        version: 5.0.2(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.0))
 
   apps/web:
     dependencies:
@@ -408,7 +414,7 @@ importers:
         version: 8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.0)
       vitest:
         specifier: ^5.0.2
-        version: 5.0.2(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2))
+        version: 5.0.2(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.0))
 
   packages/api:
     dependencies:
@@ -445,7 +451,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.2
-        version: 5.0.2(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2))
+        version: 5.0.2(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.0))
 
   packages/auth:
     dependencies:
@@ -7958,7 +7964,7 @@ snapshots:
       '@rolldown/pluginutils': 1.0.1
       vite: 8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.0)
 
-  '@vitest/mocker@5.0.2(vite@8.3.1(@types/node@26.6.2))':
+  '@vitest/mocker@5.0.2(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.0))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.2
@@ -8204,7 +8210,7 @@ snapshots:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
       solid-js: 1.9.15
-      vitest: 5.0.2(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2))
+      vitest: 5.0.2(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.0))
     transitivePeerDependencies:
       - '@opentelemetry/api'
 
@@ -10770,10 +10776,10 @@ snapshots:
       tsx: 4.23.15
       yaml: 2.9.0
 
-  vitest@5.0.2(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2)):
+  vitest@5.0.2(@types/node@26.6.2)(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.0)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.2(vite@8.3.1(@types/node@26.6.2))
+      '@vitest/mocker': 5.0.2(vite@8.3.1(@types/node@26.6.2)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.0))
       chai: 6.2.2
       es-module-lexer: 2.3.2
       expect-type: 1.4.0

@@ -223,6 +223,9 @@ WorkingDirectory=/home/pi/gpio-app/current
 ExecStart=/usr/bin/node index.mjs
 Restart=always
 RestartSec=3
+# Required by the production DATABASE_PATH guard in apps/server/src/db.ts
+Environment=NODE_ENV=production
+Environment=DATABASE_PATH=/home/pi/gpio-app/gpio_data.db
 # Runtime target is < 50MB (AGENTS.md); MemoryMax is the hard cgroup ceiling
 MemoryMax=100M
 

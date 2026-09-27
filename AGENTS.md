@@ -13,10 +13,11 @@ You are working on **`elevator-app`**, a production-grade monorepo targeting a *
    - The database location comes from `DATABASE_PATH`. Production **must** use `/home/pi/gpio-app/gpio_data.db`.
    - Local development uses `../../local.db` (relative to `apps/server`).
    - **NEVER** place the `.db` file inside the relative release execution folder (`./`), as atomic OTA symlink rotations will orphan the database or create empty instances.
-4. **Boot Migration Fail-Fast Rule (target convention):**
-   - When boot migrations are wired into `apps/server/src/index.ts`, run them synchronously with `migrate()` from `drizzle-orm/better-sqlite3/migrator` using `migrationsFolder` exported by `@elevator-app/db`, before mounting HTTP routes.
+4. **Boot Migration Fail-Fast Rule (implemented):**
+   - Boot migrations run synchronously in `apps/server/src/index.ts` via `runMigrations()` from `apps/server/src/db.ts` with `migrate()` from `drizzle-orm/better-sqlite3/migrator`, before mounting HTTP routes.
    - If a migration throws an error, **call `process.exit(1)` immediately**. This ensures `systemd` fails the health check, triggering the OTA auto-rollback mechanism.
-   - Status: migrations are generated (`packages/db/src/migrations`) but boot wiring is a tracked follow-up. Do not deploy to the Pi until it exists.
+   - **Bundled-asset trap:** `@elevator-app/*` modules are inlined by `alwaysBundle`, so any asset resolved via `import.meta.url` (e.g. `migrationsFolder`) resolves against `apps/server/dist` in the built artifact. Copy such assets with `copy` in `apps/server/tsdown.config.ts` (`packages/db/src/migrations` is the current case) and smoke-test `node dist/index.mjs` with a temp `DATABASE_PATH` before deploy — `tsx` dev mode masks the difference.
+   - The `bun build --compile` path does not embed the migrations folder; deploy the Node artifact until the compile path handles assets.
 
 ---
 
@@ -28,7 +29,8 @@ elevator-app/
 │   ├── server/                   # Hono + Node.js Backend
 │   │   ├── src/
 │   │   │   ├── index.ts          # Server entrypoint (Hono app, oRPC handlers)
-│   │   │   ├── services.ts       # createDb(ENV) + createAuth(ENV, db)
+│   │   │   ├── db.ts             # SQLite client + runMigrations() boot migrator
+│   │   │   ├── services.ts       # createAuth(ENV, db)
 │   │   │   ├── context.ts        # oRPC context (db + Better Auth session)
 │   │   │   └── env.server.ts     # Varlock env bootstrap
 │   │   └── tsdown.config.ts      # Bundler Config (neverBundle for native deps)
@@ -61,6 +63,7 @@ This project uses **Biome** for linting and formatting (configured in `biome.jso
 - **Format + fix**: `pnpm check`
 - **Type check**: `pnpm check-types`
 - **API tests**: `pnpm test:api`
+- **Server tests**: `pnpm test:server`
 - **Web tests**: `pnpm test:web`
 
 ## Verification Checklist
@@ -68,7 +71,7 @@ This project uses **Biome** for linting and formatting (configured in `biome.jso
 After completing every task, you MUST run these commands and ensure they all pass:
 
 ```bash
-pnpm check && pnpm check-types && pnpm test:api && pnpm test:web
+pnpm check && pnpm check-types && pnpm test:api && pnpm test:server && pnpm test:web
 ```
 
 Biome fixes most formatting and common lint issues automatically. Do not run ad-hoc formatters.
@@ -220,4 +223,4 @@ Existing external skills remain authoritative for their areas and are referenced
 
 ---
 
-Most formatting and common issues are automatically fixed by Biome. After completing every task you MUST run `pnpm check && pnpm check-types && pnpm test:api && pnpm test:web` to ensure compliance.
+Most formatting and common issues are automatically fixed by Biome. After completing every task you MUST run `pnpm check && pnpm check-types && pnpm test:api && pnpm test:server && pnpm test:web` to ensure compliance.
