@@ -48,6 +48,19 @@ class FakeGpio {
 	}
 }
 
+class ThrowingConstructorGpio extends FakeGpio {
+	constructor() {
+		super(GPIO_PIN, "in", "both", { debounceTimeout: 10 });
+		throw new Error("EPERM: cannot export pin");
+	}
+}
+
+class ThrowingWatchGpio extends FakeGpio {
+	override watch(): void {
+		throw new Error("EPERM: cannot watch pin");
+	}
+}
+
 const loadFakeGpio = () => Promise.resolve(FakeGpio);
 
 beforeEach(() => {
@@ -156,4 +169,32 @@ it("unwatches and unexports the pin on close", async () => {
 
 	expect(gpio?.unwatchAll).toHaveBeenCalledTimes(1);
 	expect(gpio?.unexport).toHaveBeenCalledTimes(1);
+});
+
+it("returns null when the pin cannot be exported", async () => {
+	const consoleWarn = vi
+		.spyOn(console, "warn")
+		.mockImplementation(() => undefined);
+
+	const handle = await initGpioWatcher({
+		db: createTestDb(),
+		loadGpio: () => Promise.resolve(ThrowingConstructorGpio),
+	});
+
+	expect(handle).toBeNull();
+	expect(consoleWarn).toHaveBeenCalledTimes(1);
+});
+
+it("returns null when watch registration fails", async () => {
+	const consoleWarn = vi
+		.spyOn(console, "warn")
+		.mockImplementation(() => undefined);
+
+	const handle = await initGpioWatcher({
+		db: createTestDb(),
+		loadGpio: () => Promise.resolve(ThrowingWatchGpio),
+	});
+
+	expect(handle).toBeNull();
+	expect(consoleWarn).toHaveBeenCalledTimes(1);
 });

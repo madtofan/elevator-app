@@ -32,7 +32,6 @@ export type GpioWatcherHandle = {
 
 export type InitGpioWatcherOptions = {
 	db: Database;
-	pin?: number;
 	loadGpio?: () => Promise<GpioConstructor>;
 };
 
@@ -42,13 +41,14 @@ async function loadOnoffGpio(): Promise<GpioConstructor> {
 }
 
 /**
- * Watches the configured pin for both edge transitions. Resolves to `null`
- * (instead of throwing) when `onoff` or the GPIO hardware is unavailable so
- * the server can keep booting on development machines.
+ * Watches GPIO_PIN for both edge transitions. Resolves to `null` (instead of
+ * throwing) when `onoff` is unavailable, the hardware is inaccessible, or the
+ * pin cannot be exported or watched, so the server keeps booting: this runs
+ * behind a top-level `await` in `index.ts`, where a rejection would kill the
+ * process. Only migrations may fail fast.
  */
 export async function initGpioWatcher({
 	db,
-	pin = GPIO_PIN,
 	loadGpio = loadOnoffGpio,
 }: InitGpioWatcherOptions): Promise<GpioWatcherHandle | null> {
 	let Gpio: GpioConstructor;
@@ -67,11 +67,7 @@ export async function initGpioWatcher({
 		return null;
 	}
 
-	const input = new Gpio(pin, "in", "both", {
-		debounceTimeout: DEBOUNCE_TIMEOUT_MS,
-	});
-
-	input.watch((error, value) => {
+	const onPinChange: GpioWatchCallback = (error, value) => {
 		if (error) {
 			console.error("[gpio] pin watch failed:", error);
 			return;
@@ -79,14 +75,29 @@ export async function initGpioWatcher({
 
 		try {
 			recordGpioChange(db, {
-				pin,
+				pin: GPIO_PIN,
 				state: value,
 				timestamp: new Date().toISOString(),
 			});
 		} catch (recordError) {
 			console.error("[gpio] failed to record pin change:", recordError);
 		}
-	});
+	};
+
+	let input: GpioInput;
+
+	try {
+		input = new Gpio(GPIO_PIN, "in", "both", {
+			debounceTimeout: DEBOUNCE_TIMEOUT_MS,
+		});
+		input.watch(onPinChange);
+	} catch (error) {
+		console.warn(
+			"[gpio] failed to initialize the pin watcher, disabled:",
+			error,
+		);
+		return null;
+	}
 
 	return {
 		close: () => {
