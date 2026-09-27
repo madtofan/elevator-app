@@ -21,6 +21,7 @@
 		"@orpc/zod": "catalog:",
 		"better-auth": "catalog:",
 		"better-sqlite3": "catalog:",
+		"drizzle-orm": "catalog:",
 		"hono": "^4.13.7",
 		"onoff": "^6.0.3",
 		"varlock": "catalog:",

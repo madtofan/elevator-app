@@ -1,7 +1,7 @@
 import { createAuth } from "@elevator-app/auth";
-import { createDb } from "@elevator-app/db";
 
+import { db } from "./db";
 import { ENV } from "./env.server";
 
-export const db = createDb(ENV);
+export { db };
 export const auth = createAuth(ENV, db);

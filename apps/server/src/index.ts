@@ -9,8 +9,11 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
 import { createContext } from "./context";
+import { runMigrations } from "./db";
 import { ENV } from "./env.server";
 import { auth } from "./services";
+
+runMigrations();
 
 const app = new Hono();
 
