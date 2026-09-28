@@ -167,6 +167,9 @@ catalogs:
     '@orpc/client':
       specifier: ^1.15.0
       version: 1.15.4
+    '@orpc/json-schema':
+      specifier: ^1.15.0
+      version: 1.15.4
     '@orpc/openapi':
       specifier: ^1.15.0
       version: 1.15.4
@@ -263,6 +266,9 @@ importers:
       '@hono/node-server':
         specifier: ^2.1.1
         version: 2.1.1(hono@4.13.9)
+      '@orpc/json-schema':
+        specifier: 'catalog:'
+        version: 1.15.4(ws@8.21.3)
       '@orpc/openapi':
         specifier: 'catalog:'
         version: 1.15.4(ws@8.21.3)

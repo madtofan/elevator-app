@@ -3,7 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 import { createTestDb } from "../../test/db";
 import {
-	GPIO_PIN,
+	GPIO_INPUT_PIN,
 	type GpioChangeEvent,
 	type GpioState,
 	gpioBus,
@@ -50,7 +50,7 @@ class FakeGpio {
 
 class ThrowingConstructorGpio extends FakeGpio {
 	constructor() {
-		super(GPIO_PIN, "in", "both", { debounceTimeout: 10 });
+		super(GPIO_INPUT_PIN, "in", "both", { debounceTimeout: 10 });
 		throw new Error("EPERM: cannot export pin");
 	}
 }
@@ -80,7 +80,7 @@ it("initializes pin 17 as an input on both edges with a 10ms debounce", async ()
 
 	expect(handle).not.toBeNull();
 	const [gpio] = FakeGpio.instances;
-	expect(gpio?.pin).toBe(GPIO_PIN);
+	expect(gpio?.pin).toBe(GPIO_INPUT_PIN);
 	expect(gpio?.direction).toBe("in");
 	expect(gpio?.edge).toBe("both");
 	expect(gpio?.options).toEqual({ debounceTimeout: 10 });
@@ -97,7 +97,7 @@ it("records the edge in SQLite and emits it on the bus", async () => {
 	const rows = await db.select().from(gpioHistory);
 
 	expect(rows).toHaveLength(1);
-	expect(rows[0]?.pin).toBe(GPIO_PIN);
+	expect(rows[0]?.pin).toBe(GPIO_INPUT_PIN);
 	expect(rows[0]?.state).toBe(1);
 	expect(listener).toHaveBeenCalledTimes(1);
 	const [payload] = listener.mock.calls[0] ?? [];

@@ -1,6 +1,6 @@
 import type { Database } from "@elevator-app/db";
 
-import { GPIO_PIN, type GpioState } from "./bus";
+import { GPIO_INPUT_PIN, type GpioState } from "./bus";
 import { recordGpioChange } from "./recorder";
 
 const DEBOUNCE_TIMEOUT_MS = 10;
@@ -41,7 +41,7 @@ async function loadOnoffGpio(): Promise<GpioConstructor> {
 }
 
 /**
- * Watches GPIO_PIN for both edge transitions. Resolves to `null` (instead of
+ * Watches GPIO_INPUT_PIN for both edge transitions. Resolves to `null` (instead of
  * throwing) when `onoff` is unavailable, the hardware is inaccessible, or the
  * pin cannot be exported or watched, so the server keeps booting: this runs
  * behind a top-level `await` in `index.ts`, where a rejection would kill the
@@ -75,7 +75,7 @@ export async function initGpioWatcher({
 
 		try {
 			recordGpioChange(db, {
-				pin: GPIO_PIN,
+				pin: GPIO_INPUT_PIN,
 				state: value,
 				timestamp: new Date().toISOString(),
 			});
@@ -87,7 +87,7 @@ export async function initGpioWatcher({
 	let input: GpioInput;
 
 	try {
-		input = new Gpio(GPIO_PIN, "in", "both", {
+		input = new Gpio(GPIO_INPUT_PIN, "in", "both", {
 			debounceTimeout: DEBOUNCE_TIMEOUT_MS,
 		});
 		input.watch(onPinChange);

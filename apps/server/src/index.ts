@@ -1,25 +1,34 @@
-import { appRouter } from "@elevator-app/api/routers/index";
-import { OpenAPIHandler } from "@orpc/openapi/fetch";
-import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { onError } from "@orpc/server";
-import { RPCHandler } from "@orpc/server/fetch";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
+import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 
-import { createContext } from "./context";
+import { createApiHandler, createRpcHandler } from "./api-handlers";
+import { createContextFactory } from "./context";
 import { db, runMigrations } from "./db";
 import { ENV } from "./env.server";
+import { gpioBus } from "./gpio/bus";
+import { createPinOutputPort, initGpioOutput } from "./gpio/output";
 import { gpioRoutes } from "./gpio/sse";
 import { initGpioWatcher } from "./gpio/watcher";
+import { healthRoutes } from "./health";
 import { auth } from "./services";
+import { registerStaticRoutes } from "./static";
 
 runMigrations();
 
 // Non-fatal: the server still serves history when GPIO is unavailable (e.g. on
 // development machines), unlike the migration fail-fast above.
 await initGpioWatcher({ db });
+
+const gpioOutput = await initGpioOutput();
+
+const createContext = createContextFactory({
+	pinOutput: createPinOutputPort(gpioOutput),
+	publishPinChange: (event) => {
+		gpioBus.emit("gpio-change", event);
+	},
+});
 
 const app = new Hono();
 
@@ -34,30 +43,14 @@ app.use(
 	}),
 );
 
+app.route("/api", healthRoutes);
 app.route("/api/gpio", gpioRoutes);
 
 app.on(["POST", "GET"], "/api/auth/*", async (c) => auth.handler(c.req.raw));
 
-export const apiHandler = new OpenAPIHandler(appRouter, {
-	plugins: [
-		new OpenAPIReferencePlugin({
-			schemaConverters: [new ZodToJsonSchemaConverter()],
-		}),
-	],
-	interceptors: [
-		onError((error) => {
-			console.error(error);
-		}),
-	],
-});
+export const apiHandler = createApiHandler();
 
-export const rpcHandler = new RPCHandler(appRouter, {
-	interceptors: [
-		onError((error) => {
-			console.error(error);
-		}),
-	],
-});
+export const rpcHandler = createRpcHandler();
 
 app.use("/*", async (c, next) => {
 	const context = await createContext({ context: c });
@@ -83,11 +76,7 @@ app.use("/*", async (c, next) => {
 	await next();
 });
 
-app.get("/", (c) => {
-	return c.text("OK");
-});
-
-import { serve } from "@hono/node-server";
+registerStaticRoutes(app);
 
 serve(
 	{

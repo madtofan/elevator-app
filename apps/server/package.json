@@ -17,6 +17,7 @@
 		"@elevator-app/auth": "workspace:*",
 		"@elevator-app/db": "workspace:*",
 		"@hono/node-server": "^2.1.1",
+		"@orpc/json-schema": "catalog:",
 		"@orpc/openapi": "catalog:",
 		"@orpc/server": "catalog:",
 		"@orpc/zod": "catalog:",
