@@ -18,6 +18,9 @@ You are working on **`elevator-app`**, a production-grade monorepo targeting a *
    - If a migration throws an error, **call `process.exit(1)` immediately**. This ensures `systemd` fails the health check, triggering the OTA auto-rollback mechanism.
    - **Bundled-asset trap:** `@elevator-app/*` modules are inlined by `alwaysBundle`, so any asset resolved via `import.meta.url` (e.g. `migrationsFolder`) resolves against `apps/server/dist` in the built artifact. Copy such assets with `copy` in `apps/server/tsdown.config.ts` (`packages/db/src/migrations` is the current case) and smoke-test `node dist/index.mjs` with a temp `DATABASE_PATH` before deploy — `tsx` dev mode masks the difference.
    - The `bun build --compile` path does not embed the migrations folder; deploy the Node artifact until the compile path handles assets.
+5. **Hardware Init Non-Fatal Rule (implemented):**
+   - `initGpioWatcher()` and any future peripheral init must catch load, construction, and watch-registration errors, log a warning with `console.warn`, and return `null`.
+   - `apps/server/src/index.ts` awaits init at module top level, so an uncaught error rejects module evaluation and kills the process (systemd restart loop). **Only migrations may call `process.exit(1)`.**
 
 ---
 
