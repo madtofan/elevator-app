@@ -11,11 +11,11 @@ afterEach(() => {
 	resetTestData();
 });
 
-it("flips the logical state, records it, and publishes the change", async () => {
+it("flips the logical state, records it, and publishes the change", () => {
 	const publishPinChange = vi.fn();
 
-	const first = await togglePinService(testDb, { publishPinChange });
-	const second = await togglePinService(testDb, { publishPinChange });
+	const first = togglePinService(testDb, { publishPinChange });
+	const second = togglePinService(testDb, { publishPinChange });
 
 	expect(first.pin).toBe(GPIO_OUTPUT_PIN);
 	expect(first.state).toBe(1);
@@ -23,39 +23,36 @@ it("flips the logical state, records it, and publishes the change", async () => 
 	expect(publishPinChange).toHaveBeenCalledTimes(2);
 	expect(publishPinChange).toHaveBeenLastCalledWith(second);
 
-	const rows = await testDb
+	const rows = testDb
 		.select()
 		.from(gpioHistory)
-		.orderBy(asc(gpioHistory.id));
+		.orderBy(asc(gpioHistory.id))
+		.all();
 
 	expect(rows.map((row) => row.state)).toEqual([1, 0]);
 });
 
-it("writes the next state to the hardware output", async () => {
+it("writes the next state to the hardware output", () => {
 	const write = vi.fn<(state: GpioState) => boolean>(() => true);
 
-	await togglePinService(testDb, {
-		pinOutput: { read: () => 0, write },
-	});
-	await togglePinService(testDb, {
-		pinOutput: { read: () => 1, write },
-	});
+	togglePinService(testDb, { pinOutput: { read: () => 0, write } });
+	togglePinService(testDb, { pinOutput: { read: () => 1, write } });
 
 	expect(write).toHaveBeenNthCalledWith(1, 1);
 	expect(write).toHaveBeenNthCalledWith(2, 0);
 });
 
-it("still records and publishes when the hardware write fails", async () => {
+it("still records and publishes when the hardware write fails", () => {
 	const publishPinChange = vi.fn();
 
-	const event = await togglePinService(testDb, {
+	const event = togglePinService(testDb, {
 		pinOutput: { read: () => null, write: () => false },
 		publishPinChange,
 	});
 
 	expect(event.state).toBe(1);
 
-	const rows = await testDb.select().from(gpioHistory);
+	const rows = testDb.select().from(gpioHistory).all();
 
 	expect(rows).toHaveLength(1);
 	expect(publishPinChange).toHaveBeenCalledWith(event);

@@ -13,15 +13,18 @@ export type TogglePinServiceOptions = {
 };
 
 /**
- * Flips the output pin to the opposite state. The hardware write is best
- * effort: failures are reported by the port (which logs them) and the logical
- * state is still recorded and published so the PWA keeps working without GPIO.
+ * Flips the output pin to the opposite state. Synchronous end to end (sync
+ * read, sync insert) so concurrent toggles cannot interleave between the read
+ * and the write and record the same transition twice. The hardware write is
+ * best effort: failures are reported by the port (which logs them) and the
+ * logical state is still recorded and published so the PWA keeps working
+ * without GPIO.
  */
-export async function togglePinService(
+export function togglePinService(
 	db: Database,
 	{ pinOutput, publishPinChange }: TogglePinServiceOptions = {},
-): Promise<PinState> {
-	const { state: currentState } = await getPinStateService(db, pinOutput);
+): PinState {
+	const { state: currentState } = getPinStateService(db, pinOutput);
 	const state: GpioState = currentState === 1 ? 0 : 1;
 	const event = {
 		pin: GPIO_OUTPUT_PIN,
@@ -30,7 +33,7 @@ export async function togglePinService(
 	};
 
 	pinOutput?.write(state);
-	await db.insert(gpioHistory).values(event);
+	db.insert(gpioHistory).values(event).run();
 	publishPinChange?.(event);
 
 	return event;

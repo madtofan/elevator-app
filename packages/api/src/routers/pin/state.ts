@@ -5,14 +5,15 @@ import { desc, eq } from "drizzle-orm";
 /**
  * Latest recorded transition for a pin, or `undefined` when the pin has no
  * history yet. Ordered by id (not timestamp) so equal timestamps stay stable.
+ * Synchronous (better-sqlite3 is) so callers can compose atomic
+ * read-modify-write sequences that never yield to another request.
  */
-export async function readLatestPinChange(db: Database, pin: number) {
-	const [row] = await db
+export function readLatestPinChange(db: Database, pin: number) {
+	return db
 		.select()
 		.from(gpioHistory)
 		.where(eq(gpioHistory.pin, pin))
 		.orderBy(desc(gpioHistory.id))
-		.limit(1);
-
-	return row;
+		.limit(1)
+		.get();
 }

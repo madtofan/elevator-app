@@ -9,19 +9,28 @@ import { readLatestPinChange } from "../state";
 /**
  * Live hardware state wins when the output pin is available; otherwise the
  * latest recorded transition is the source of truth, defaulting to off.
+ *
+ * The recorded timestamp only describes `state` while the live reading agrees
+ * with it. After a boot reset (the pin is forced LOW without being recorded)
+ * the previous transition no longer applies, so the timestamp is unknown.
  */
-export async function getPinStateService(
+export function getPinStateService(
 	db: Database,
 	pinOutput?: PinOutput,
-): Promise<PinState> {
-	const latest = await readLatestPinChange(db, GPIO_OUTPUT_PIN);
+): PinState {
+	const latest = readLatestPinChange(db, GPIO_OUTPUT_PIN);
 	const liveState = pinOutput?.read() ?? null;
 	const recordedState = latest ? toGpioState(latest.state) : null;
+	const state = liveState ?? recordedState ?? 0;
+	const timestamp =
+		liveState === null || liveState === recordedState
+			? (latest?.timestamp ?? null)
+			: null;
 
 	return {
 		pin: GPIO_OUTPUT_PIN,
-		state: liveState ?? recordedState ?? 0,
-		timestamp: latest?.timestamp ?? null,
+		state,
+		timestamp,
 	};
 }
 
