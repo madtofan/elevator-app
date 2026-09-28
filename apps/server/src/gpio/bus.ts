@@ -1,14 +1,12 @@
 import { EventEmitter } from "node:events";
+import type { GpioChangeEvent } from "@elevator-app/api/gpio";
 
-export const GPIO_PIN = 17;
-
-export type GpioState = 0 | 1;
-
-export type GpioChangeEvent = {
-	pin: number;
-	state: GpioState;
-	timestamp: string;
-};
+export {
+	GPIO_INPUT_PIN,
+	GPIO_OUTPUT_PIN,
+	type GpioChangeEvent,
+	type GpioState,
+} from "@elevator-app/api/gpio";
 
 type GpioBusEvents = {
 	"gpio-change": [event: GpioChangeEvent];

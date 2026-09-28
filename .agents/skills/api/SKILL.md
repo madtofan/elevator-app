@@ -10,17 +10,18 @@ Domain skill for `packages/api` and `packages/db` — Router/Handler patterns, O
 ## Current Surface (`packages/api/src`)
 
 - `index.ts` — exports `o`, `publicProcedure`, `protectedProcedure`. The auth middleware throws `ORPCError("UNAUTHORIZED")`.
-- `context.ts` — `Context = { session: Session | null; db: Database }`. The server assembles it in `apps/server/src/context.ts` from `createDb(ENV)` and the Better Auth session.
-- `routers/index.ts` — assembles `appRouter` (currently `healthCheck`, `privateData`).
+- `context.ts` — `Context = { session, db, pinOutput?, publishPinChange? }`. The server assembles it in `apps/server/src/context.ts` from `createDb(ENV)`, the Better Auth session, and injected GPIO ports.
+- `gpio.ts` — shared pin constants (`GPIO_INPUT_PIN`, `GPIO_OUTPUT_PIN`), `GpioState`/`GpioChangeEvent` types, and `toGpioState()`.
+- `routers/index.ts` — assembles `appRouter` (`healthCheck`, `privateData`, `getPinState`, `togglePin`, `getHistory`).
 - `test/db.ts` — in-memory `testDb` (migrations already applied) and `resetTestData()`.
 - `test/__tests__/` and `routers/__tests__/` — Vitest tests.
 
 ## Routers (`packages/api/src/routers/<feature>/`)
 
-- Each router is a module folder with an `index.ts` that assembles its handlers.
-- Schemas live in a `schemas.ts` file at the router level (Zod).
+- Each feature is a module folder (`pin/`, `history/`) grouping its handlers.
+- Schemas live in a `schemas.ts` file at the feature level (Zod).
 - Handlers live in a `handlers/` subfolder with kebab-case filenames.
-- Register the router in `routers/index.ts` under its feature key.
+- Register procedures in `routers/index.ts`. The repository convention is flat, top-level keys named after the public procedure (`getPinState`, `togglePin`, `getHistory`) so clients call `client.getPinState()`. Group under a feature key only when a feature exposes enough procedures to warrant namespacing.
 
 ## Handler Files (e.g., `handlers/list.ts`)
 
@@ -31,7 +32,7 @@ Each handler file exports two things:
 
 ```ts
 import type { Database } from "@elevator-app/db";
-import { pinEvent } from "@elevator-app/db/schema/history";
+import { gpioHistory } from "@elevator-app/db/schema/history";
 import { desc } from "drizzle-orm";
 
 import { publicProcedure } from "../../../index";
@@ -43,15 +44,15 @@ export async function listPinEventsService(
 ) {
   return await db
     .select()
-    .from(pinEvent)
-    .orderBy(desc(pinEvent.createdAt))
+    .from(gpioHistory)
+    .orderBy(desc(gpioHistory.id))
     .limit(input.limit);
 }
 
 export const listPinEvents = publicProcedure
   .route({
     method: "GET",
-    path: "/history.list",
+    path: "/listPinEvents",
     summary: "List pin state transitions",
     description: "Returns the most recent pin state transitions.",
     tags: ["History"],
@@ -62,7 +63,7 @@ export const listPinEvents = publicProcedure
   .handler(({ context, input }) => listPinEventsService(context.db, input));
 ```
 
-The example assumes a future `pinEvent` table in `packages/db/src/schema/history.ts`; replace it with the real table when the GPIO history feature lands.
+See `routers/history/handlers/list.ts` (`getHistory`) for the implemented version, which also accepts `limit`/`offset` and returns `{ items, hasMore }`.
 
 ### Route Metadata
 
@@ -71,7 +72,7 @@ Every handler MUST include a `.route()` call with OpenAPI metadata. This powers 
 **Required route properties:**
 
 - `method` — HTTP method (`"GET"`, `"POST"`, `"PATCH"`, `"DELETE"`)
-- `path` — RPC-style path matching the router key hierarchy (e.g., `"/history.list"`, `"/gpio.setState"`)
+- `path` — RPC-style path matching the procedure's registered key (e.g., `"/getHistory"`, `"/togglePin"`)
 - `summary` — Short summary of the endpoint
 - `description` — Detailed description of what the endpoint does
 - `tags` — Array of tag strings for grouping in the API reference (e.g., `["History"]`, `["GPIO"]`)

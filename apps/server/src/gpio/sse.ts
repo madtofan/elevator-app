@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 
-import { GPIO_PIN, type GpioChangeEvent, gpioBus } from "./bus";
+import { GPIO_INPUT_PIN, type GpioChangeEvent, gpioBus } from "./bus";
 
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const RECONNECT_DELAY_MS = 3_000;
@@ -38,7 +38,7 @@ gpioRoutes.get("/sse", (c) =>
 
 		await stream.writeSSE({
 			event: "connected",
-			data: JSON.stringify({ pin: GPIO_PIN }),
+			data: JSON.stringify({ pin: GPIO_INPUT_PIN }),
 			retry: RECONNECT_DELAY_MS,
 		});
 
